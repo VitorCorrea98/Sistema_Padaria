@@ -4,11 +4,11 @@ WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-COPY . .
+COPY package.json ./
+COPY pnpm-lock.yaml ./
 
 RUN pnpm install --frozen-lockfile
-RUN pnpm run build
+
+COPY . .
 
 EXPOSE 3000
-
-CMD ["node", "dist/index.js"]

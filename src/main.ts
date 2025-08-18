@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import express from "express";
+import { LoadEnv } from "./core/config/env";
 import { config } from "./env";
 import { ConsoleLogger } from "./shared/logger";
 
@@ -12,8 +13,11 @@ app.get("/health", (_, res) => {
 
 const MainLive = Effect.gen(function* (_) {
 	const logger = ConsoleLogger;
+	const env = yield* LoadEnv;
 
-	yield* _(logger.info(`🚀 Server running at http://localhost:${config.PORT}`));
+	yield* logger.info(
+		`🚀 Server ${env.NODE_ENV} running at http://localhost:${config.PORT}`,
+	);
 
 	app.listen(config.PORT);
 });

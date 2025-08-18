@@ -4,13 +4,14 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "tsx watch src/main.ts",
+    "dev": "dotenv -e .env.development nodemon src/main.ts",
+    "prestart": "tsc -p tsconfig.json",
+    "start": "dotenv -e .env node dist/main.js",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/main.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio",
-    "typecheck": "pnpm biome check"
+    "check": "pnpm biome check",
+    "check:fix": "pnpm biome check --write"
   },
   "keywords": [],
   "author": "",
@@ -28,7 +29,9 @@
   "devDependencies": {
     "@biomejs/biome": "^2.1.4",
     "@types/node": "^24.2.1",
-    "ts-node": "^10.9.2",
-    "rimraf": "^5.0.5"
+    "dotenv-cli": "^10.0.0",
+    "nodemon": "^3.1.10",
+    "rimraf": "^5.0.5",
+    "ts-node": "^10.9.2"
   }
 }
