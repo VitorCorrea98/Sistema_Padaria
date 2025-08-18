@@ -6,6 +6,7 @@ services:
         APP_ENV: ${APP_ENV} # Passa o ambiente para o build
     environment:
       - APP_ENV=${APP_ENV}
+    container_name: padaria_backend
     command: >
       sh -c "if [ \"$APP_ENV\" = 'DEV' ]; then pnpm run dev; else pnpm run start; fi"
     ports:
@@ -13,3 +14,9 @@ services:
     volumes:
       - .:/app # Garante que os arquivos locais sejam refletidos no container
       - /app/node_modules # Evita sobrescrever os módulos do container
+    networks:
+      - devnet
+
+networks:
+  devnet:
+    external: true
