@@ -3,7 +3,7 @@ services:
     build:
       context: .
       args:
-        APP_ENV: ${APP_ENV} # Passa o ambiente para o build
+        APP_ENV: ${APP_ENV}
     environment:
       - APP_ENV=${APP_ENV}
     container_name: padaria_backend
@@ -12,8 +12,8 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - .:/app # Garante que os arquivos locais sejam refletidos no container
-      - /app/node_modules # Evita sobrescrever os módulos do container
+      - .:/app 
+      - /app/node_modules
     networks:
       - devnet
 

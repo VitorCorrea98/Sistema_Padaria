@@ -1,18 +1,15 @@
 import { Effect } from "effect";
 import express from "express";
-import { PrismaClient } from "../prisma/generated/prisma/client";
 import { LoadEnv } from "./core/config/env";
-import { config } from "./env";
+import { myController } from "./shared/genericController";
 import { ConsoleLogger } from "./shared/logger";
 
 const app = express();
 app.use(express.json());
 
-app.get("/health", async (_, res) => {
-	const prisma = new PrismaClient();
-	const products = await prisma.product.findMany();
-	console.log(products);
+app.post("/orders", myController);
 
+app.get("/health", async (_, res) => {
 	res.json({ status: "ok" });
 });
 
@@ -21,10 +18,10 @@ const MainLive = Effect.gen(function* (_) {
 	const env = yield* LoadEnv;
 
 	yield* logger.info(
-		`🚀 Server ${env.NODE_ENV} running at http://localhost:${config.PORT}`,
+		`🚀 Server ${env.NODE_ENV} running at http://localhost:${env.PORT}`,
 	);
 
-	app.listen(config.PORT);
+	app.listen(env.PORT);
 });
 
 Effect.runPromise(MainLive).catch(console.error);
