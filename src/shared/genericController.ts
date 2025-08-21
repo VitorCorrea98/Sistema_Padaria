@@ -30,49 +30,41 @@ const HTTPServerErrorStatus = {
 	GATEWAY_TIMEOUT: 504,
 } as const;
 
-export const HTTPStatusMap = {
+const HTTPStatusMap = {
 	...HTTPGoodStatus,
 	...HTTPBadStatus,
 	...HTTPServerErrorStatus,
 } as const;
 
-export type TGoodStatus = keyof typeof HTTPGoodStatus;
+type TGoodStatus = keyof typeof HTTPGoodStatus;
 
-export type TBadStatus = keyof typeof HTTPBadStatus;
+type TBadStatus = keyof typeof HTTPBadStatus;
 
-export type TServerStatus = keyof typeof HTTPServerErrorStatus;
+type TServerStatus = keyof typeof HTTPServerErrorStatus;
 
-export type HTTPResponseStatus = keyof typeof HTTPStatusMap;
+type HTTPResponseStatus = keyof typeof HTTPStatusMap;
 
-export const getHTTPStatus = (status: HTTPResponseStatus) =>
-	HTTPStatusMap[status];
+const getHTTPStatus = (status: HTTPResponseStatus) => HTTPStatusMap[status];
 
-export type ServiceSuccessResponse<T = unknown> = {
+type ServiceSuccessResponse<T = unknown> = {
 	status: TGoodStatus;
 	message: string;
 	data?: T;
 };
 
-export type ServiceErrorResponse<T = unknown> = {
+type ServiceErrorResponse<T = unknown> = {
 	status: TBadStatus | TServerStatus;
 	message: string;
 	error: T;
 };
 
-export type ServiceResponse = ServiceSuccessResponse | ServiceErrorResponse;
+type ServiceResponse<T = unknown> =
+	| ServiceSuccessResponse<T>
+	| ServiceErrorResponse;
 
-export type ServiceFunction<TInput, TResponse> = (
-	input: TInput,
-) => Promise<TResponse>;
+type TAllowedRequestKeys = "body" | "params" | "query" | "headers" | "locals";
 
-export type TAllowedRequestKeys =
-	| "body"
-	| "params"
-	| "query"
-	| "headers"
-	| "locals";
-
-export type TExtractedRequest<
+type TExtractedRequest<
 	T extends TAllowedRequestKeys,
 	TLocals = Record<string, unknown>,
 > = {
@@ -83,7 +75,7 @@ export type TExtractedRequest<
 			: never;
 };
 
-export const getRequestObjectKeys = <
+const getRequestObjectKeys = <
 	T extends TAllowedRequestKeys,
 	TLocals = Record<string, unknown>,
 >(
@@ -98,7 +90,7 @@ export const getRequestObjectKeys = <
 	return result;
 };
 
-export type ControllerConfig<
+type ControllerConfig<
 	T extends TAllowedRequestKeys,
 	E,
 	TLocals = Record<string, unknown>,
@@ -112,7 +104,7 @@ export type ControllerConfig<
 	errorHandler?: (e: E) => ServiceErrorResponse; // Optional for custom error mapping
 };
 
-export const genericController = <
+const genericController = <
 	T extends TAllowedRequestKeys,
 	E,
 	TLocals = Record<string, unknown>,
@@ -153,20 +145,78 @@ export const genericController = <
 	},
 ];
 
-type MyInput = {
-	body: { name: string };
+interface MyInput {
+	body: { name: string; id: number };
 	locals: { user: string };
-};
+}
 
-const myService = (input: MyInput) =>
+interface MyServiceResponse {
+	name: string;
+}
+
+type TGenericService<TInput, TResponse, E = Error, R = never> = (
+	input: TInput,
+) => Effect.Effect<ServiceResponse<TResponse>, E, R>;
+
+const myService: TGenericService<MyInput, MyServiceResponse> = (
+	input: MyInput,
+): Effect.Effect<ServiceResponse<MyServiceResponse>, Error, never> =>
 	Effect.succeed({
 		status: "OK",
-		message: "Success",
+		message: "My service executed successfully",
 		data: {
 			name: input.body.name,
-			user: input.locals.user,
 		},
-	} as ServiceSuccessResponse);
+	});
+
+type TypedMiddleware<
+	TInput,
+	TLocalsOut extends Record<string, unknown>,
+> = RequestHandler<
+	TInput extends { params: infer P } ? P : unknown,
+	unknown,
+	TInput extends { body: infer B } ? B : unknown,
+	TInput extends { query: infer Q } ? Q : unknown,
+	Record<string, unknown> & TLocalsOut
+>;
+
+const asRequestHandler = <TInput, TLocalsOut extends Record<string, unknown>>(
+	mw: TypedMiddleware<TInput, TLocalsOut>[],
+): RequestHandler => mw as unknown as RequestHandler;
+
+const MiddlewareCheckUser: TypedMiddleware<
+	MyInput, // Specifies it uses req.body
+	{ user: string } // Adds 'user' to outgoing locals
+> = (req, res, next) => {
+	if (req.body.name !== "validUser") {
+		res.status(401).json({
+			status: "BAD_REQUEST",
+			message: "User not authenticated",
+			error: "FEfe",
+		} as ServiceErrorResponse);
+		return;
+	}
+	res.locals.user = "authenticated-user"; // Set locals
+	next();
+	return;
+};
+
+const MiddlewareCheckUser2: TypedMiddleware<
+	MyInput, // Specifies it uses req.body
+	{ user: string } // Adds 'user' to outgoing locals
+> = (req, res, next) => {
+	if (req.body.name !== "fef") {
+		res.status(422).json({
+			status: "BAD_REQUEST",
+			message: "User not authenticated",
+			error: "TESTA",
+		} as ServiceErrorResponse);
+		return;
+	}
+	res.locals.user = "authenticated-user"; // Set locals
+	next();
+	return;
+};
 
 const myControllerConfig: ControllerConfig<
 	keyof MyInput,
@@ -175,7 +225,7 @@ const myControllerConfig: ControllerConfig<
 > = {
 	service: myService,
 	requestKeys: ["body", "locals"],
-	middlewares: [],
+	middlewares: [asRequestHandler([MiddlewareCheckUser, MiddlewareCheckUser2])],
 	providers: undefined,
 	errorHandler: (e) => ({
 		status: "CONFLICT",
