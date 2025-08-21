@@ -1,4 +1,4 @@
-import { pipe } from "effect";
+import { Context, pipe } from "effect";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
@@ -89,27 +89,18 @@ const getRequestObjectKeys = <
 	}
 	return result;
 };
-
-type ControllerConfig<
-	T extends TAllowedRequestKeys,
-	E,
-	TLocals = Record<string, unknown>,
-> = {
+type ControllerConfig<T extends TAllowedRequestKeys, E, TLocals, R> = {
 	service: (
 		input: TExtractedRequest<T, TLocals>,
-	) => Effect.Effect<ServiceResponse, E>;
+	) => Effect.Effect<ServiceResponse, E, R>;
 	requestKeys: T[];
 	middlewares: RequestHandler[];
-	providers: [Layer.Layer<unknown, never>] | undefined;
-	errorHandler?: (e: E) => ServiceErrorResponse; // Optional for custom error mapping
+	providers: [Layer.Layer<R, never, never>];
+	errorHandler?: (e: E) => ServiceErrorResponse;
 };
 
-const genericController = <
-	T extends TAllowedRequestKeys,
-	E,
-	TLocals = Record<string, unknown>,
->(
-	config: ControllerConfig<T, E, TLocals>,
+const genericController = <T extends TAllowedRequestKeys, E, TLocals, R>(
+	config: ControllerConfig<T, E, TLocals, R>,
 ): RequestHandler[] => [
 	...config.middlewares,
 	(req: Request, res: Response, next: NextFunction) => {
@@ -118,9 +109,7 @@ const genericController = <
 			req,
 			res,
 		);
-		const mergedLayers = config.providers
-			? Layer.mergeAll(...config.providers)
-			: Layer.empty;
+		const mergedLayers = Layer.mergeAll(...config.providers) ?? Layer.empty;
 
 		const program = pipe(
 			config.service(input),
@@ -145,6 +134,28 @@ const genericController = <
 	},
 ];
 
+interface Database {
+	findUser(id: number): Effect.Effect<{ id: number; name: string }, Error>;
+}
+const Database = Context.GenericTag<Database>("Database");
+
+const DatabaseLive = Layer.succeed(Database, {
+	findUser: (id) =>
+		id === 1
+			? Effect.succeed({ id: 1, name: "Alice" })
+			: Effect.fail(new Error("User not found")),
+});
+
+interface Logger {
+	log(message: string): Effect.Effect<void, never>;
+}
+
+const Logger = Context.GenericTag<Logger>("Logger");
+
+const ConsoleLogger: Logger = {
+	log: (message: string) => Effect.sync(() => console.log(message)),
+};
+
 interface MyInput {
 	body: { name: string; id: number };
 	locals: { user: string };
@@ -158,16 +169,21 @@ type TGenericService<TInput, TResponse, E = Error, R = never> = (
 	input: TInput,
 ) => Effect.Effect<ServiceResponse<TResponse>, E, R>;
 
-const myService: TGenericService<MyInput, MyServiceResponse> = (
-	input: MyInput,
-): Effect.Effect<ServiceResponse<MyServiceResponse>, Error, never> =>
-	Effect.succeed({
-		status: "OK",
-		message: "My service executed successfully",
-		data: {
-			name: input.body.name,
-		},
-	});
+const myService: TGenericService<
+	MyInput,
+	MyServiceResponse,
+	Error,
+	Database
+> = (input: MyInput) =>
+	pipe(
+		Database,
+		Effect.flatMap((db) => db.findUser(input.body.id)),
+		Effect.map((user) => ({
+			status: "OK",
+			message: "User fetched",
+			data: { name: user.name },
+		})),
+	);
 
 type TypedMiddleware<
 	TInput,
@@ -184,28 +200,39 @@ const asRequestHandler = <TInput, TLocalsOut extends Record<string, unknown>>(
 	mw: TypedMiddleware<TInput, TLocalsOut>[],
 ): RequestHandler => mw as unknown as RequestHandler;
 
-const MiddlewareCheckUser: TypedMiddleware<
-	MyInput, // Specifies it uses req.body
-	{ user: string } // Adds 'user' to outgoing locals
-> = (req, res, next) => {
-	if (req.body.name !== "validUser") {
-		res.status(401).json({
-			status: "BAD_REQUEST",
+const MiddlewareCheckUser: TypedMiddleware<MyInput, { user: string }> = (
+	req,
+	res,
+	next,
+) => {
+	const program = pipe(
+		Effect.fromNullable(req.body.name === "validUser" ? req.body : null),
+		Effect.mapError(() => ({
+			status: "UNAUTHORIZED" as const,
 			message: "User not authenticated",
-			error: "FEfe",
-		} as ServiceErrorResponse);
-		return;
-	}
-	res.locals.user = "authenticated-user"; // Set locals
-	next();
-	return;
+			error: "Invalid user",
+		})),
+		Effect.tap(() =>
+			Effect.sync(() => {
+				res.locals.user = "authenticated-user";
+			}),
+		),
+	);
+
+	Effect.runPromiseExit(program).then((exit) => {
+		if (exit._tag === "Failure") {
+			res.status(getHTTPStatus("BAD_REQUEST")).json(exit.cause);
+		} else {
+			next();
+		}
+	});
 };
 
 const MiddlewareCheckUser2: TypedMiddleware<
 	MyInput, // Specifies it uses req.body
 	{ user: string } // Adds 'user' to outgoing locals
-> = (req, res, next) => {
-	if (req.body.name !== "fef") {
+> = (_req, res, next) => {
+	if (res.locals.user !== "authenticated-user") {
 		res.status(422).json({
 			status: "BAD_REQUEST",
 			message: "User not authenticated",
@@ -213,7 +240,6 @@ const MiddlewareCheckUser2: TypedMiddleware<
 		} as ServiceErrorResponse);
 		return;
 	}
-	res.locals.user = "authenticated-user"; // Set locals
 	next();
 	return;
 };
@@ -221,12 +247,13 @@ const MiddlewareCheckUser2: TypedMiddleware<
 const myControllerConfig: ControllerConfig<
 	keyof MyInput,
 	Error,
-	{ user: string }
+	{ user: string },
+	Database
 > = {
 	service: myService,
 	requestKeys: ["body", "locals"],
 	middlewares: [asRequestHandler([MiddlewareCheckUser, MiddlewareCheckUser2])],
-	providers: undefined,
+	providers: [DatabaseLive],
 	errorHandler: (e) => ({
 		status: "CONFLICT",
 		message: "An error occurred",
