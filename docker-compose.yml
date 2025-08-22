@@ -14,9 +14,10 @@ services:
     volumes:
       - .:/app 
       - /app/node_modules
+      - ./init-db:/docker-entrypoint-initdb.d 
     networks:
-      - devnet
+      - dev_network
 
 networks:
-  devnet:
+  dev_network:
     external: true
