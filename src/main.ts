@@ -1,13 +1,15 @@
 import { Effect } from "effect";
 import express from "express";
 import { LoadEnv } from "./core/config/env";
-import { myController } from "./shared/genericController";
+import { getUserController } from "./shared/effectGenericController";
+// import { myController } from "./shared/genericController";
 import { ConsoleLogger } from "./shared/logger";
 
 const app = express();
 app.use(express.json());
 
-app.post("/orders", myController);
+// app.post("/orders", myController);
+app.post("/users/:id", getUserController);
 
 app.get("/health", async (_, res) => {
 	res.json({ status: "ok" });
