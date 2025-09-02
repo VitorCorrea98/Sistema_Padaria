@@ -1,5 +1,5 @@
 {
-  "name": "projeto_sistema_padaria",
+  "name": "project_sistema_padaria",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -14,12 +14,10 @@
     "check:fix": "pnpm biome check --write"
   },
   "keywords": [],
-  "author": "",
+  "author": "Vitor Correa",
   "license": "ISC",
   "packageManager": "pnpm@10.12.1",
   "dependencies": {
-    "@effect/platform": "^0.90.5",
-    "@effect/platform-node": "^0.96.0",
     "@prisma/client": "^6.14.0",
     "@types/express": "^5.0.3",
     "effect": "^3.17.7",
@@ -33,7 +31,6 @@
     "@types/node": "^24.2.1",
     "dotenv-cli": "^10.0.0",
     "nodemon": "^3.1.10",
-    "rimraf": "^5.0.5",
     "ts-node": "^10.9.2"
   }
 }
