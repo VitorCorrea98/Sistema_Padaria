@@ -21,6 +21,7 @@ type ErrorStatusMap = {
 	ForbiddenError: "FORBIDDEN";
 	NotFoundError: "NOT_FOUND";
 	ConflictError: "CONFLICT";
+	BadRequestError: "BAD_REQUEST";
 };
 
 type AllErrorsTags = keyof ErrorStatusMap;

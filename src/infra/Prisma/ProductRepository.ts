@@ -1,14 +1,14 @@
 import { Context, Effect, Layer } from "effect";
 import { DatabaseError } from "../../core/Errors";
 import type { TProductRecord } from "../../core/Product/domain";
-import type { TProductRead } from "../../core/Product/repository";
+import type { TProductRepository } from "../../core/Product/repository";
 import { PrismaClientTag } from ".";
 
-export const UserRepo =
-	Context.GenericTag<TProductRead<TProductRecord>>("UserRepo");
+export const ProductRepo =
+	Context.GenericTag<TProductRepository<TProductRecord>>("ProductRepo");
 
-export const UserRepoLive = Layer.effect(
-	UserRepo,
+export const ProductRepoLive = Layer.effect(
+	ProductRepo,
 	Effect.gen(function* () {
 		const prisma = yield* PrismaClientTag;
 
